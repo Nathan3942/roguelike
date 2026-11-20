@@ -19,6 +19,14 @@ class MoveAction:
 
 
 @dataclass(frozen=True)
+class FireAction:
+    """Tirer une flèche dans la direction (dx, dy)."""
+
+    dx: int
+    dy: int
+
+
+@dataclass(frozen=True)
 class WaitAction:
     """Passer son tour sans bouger (les monstres, eux, agissent)."""
 
@@ -55,6 +63,7 @@ class QuitAction:
 # Une action possible est l'une des classes ci-dessus.
 Action = (
     MoveAction
+    | FireAction
     | WaitAction
     | PickupAction
     | UseItemAction

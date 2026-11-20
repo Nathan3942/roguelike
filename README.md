@@ -8,7 +8,7 @@ combattant gobelins et orcs. La mort est définitive.
    #####..#.##
    #...@..g..#        @  vous          g  gobelin     o  orc
    #.........####     !  potion        %  cadavre     >  escalier
-   #.........o...
+   #.........o...     -  |  flèches en vol
    ######.####
 ```
 
@@ -49,6 +49,7 @@ ou réduisez la police. Si le terminal est trop petit, un message l'indique.
 | Flèches ou `h` `j` `k` `l` | se déplacer (gauche, bas, haut, droite) |
 | `y` `u` `b` `n` | se déplacer en diagonale |
 | se déplacer vers un monstre | l'attaquer |
+| `w` `a` `s` `d` | tirer une flèche (haut, gauche, bas, droite) |
 | `.` ou `5` | attendre un tour |
 | `g` | ramasser un objet |
 | `i` | ouvrir l'inventaire (lettre : choisir un objet, puis `u` utiliser / `j` jeter) |
@@ -77,6 +78,9 @@ en bas de l'écran pendant la partie et sur l'écran de mort : relancez avec
 
 - Le jeu est au tour par tour : les monstres n'agissent que quand vous agissez.
 - Dégâts d'une attaque = attaque de l'attaquant − défense de la cible.
+- Flèches infinies : tirer coûte un tour. Une flèche avance d'une case à chaque
+  action, touche le premier monstre rencontré (4 − défense) et se brise sur
+  les murs. Le corps à corps (5) fait plus mal.
 - Une potion de soin rend 10 PV (sans dépasser le maximum).
 - Le sac contient 10 objets au maximum.
 - Plus on descend, plus les monstres sont nombreux et forts.

@@ -24,7 +24,7 @@ from typing import Any
 
 from game.components import Fighter, Healing, HostileAI, Inventory
 from game.engine import Engine
-from game.entities import Actor, Entity, Item
+from game.entities import Actor, Entity, Item, Projectile
 from game.map import FLOOR, STAIRS, WALL, GameMap, Tile
 
 # ~/.roguelike/save.json — Path.home() marche sous Linux ET Windows
@@ -97,6 +97,9 @@ def entity_to_dict(entity: Entity) -> JSON:
     elif isinstance(entity, Item):
         data["type"] = "item"
         data["consumable"] = consumable_to_dict(entity.consumable)
+    elif isinstance(entity, Projectile):
+        data["type"] = "projectile"  # flèche en vol au moment de quitter
+        data["dx"], data["dy"], data["power"] = entity.dx, entity.dy, entity.power
     else:
         data["type"] = "entity"
     return data
@@ -127,6 +130,8 @@ def entity_from_dict(data: JSON) -> Entity:
         )
     if kind == "item":
         return Item(**common, consumable=consumable_from_dict(data["consumable"]))
+    if kind == "projectile":
+        return Projectile(**common, dx=data["dx"], dy=data["dy"], power=data["power"])
     if kind == "entity":
         return Entity(**common)
     raise ValueError(f"Type d'entité inconnu : {kind}")

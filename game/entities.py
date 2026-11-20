@@ -53,6 +53,20 @@ class Item(Entity):
     consumable: Healing | None = None
 
 
+@dataclass
+class Projectile(Entity):
+    """Une flèche en vol : elle avance de (dx, dy) à chaque tour.
+
+    Ne bloque pas le passage (hérité : False) : un monstre peut marcher
+    dessus… et se la prendre (voir Engine.resolve_arrow_hits).
+    power : dégâts de base, avant la défense de la cible.
+    """
+
+    dx: int = 0
+    dy: int = 0
+    power: int = 4
+
+
 # --- Fabriques -----------------------------------------------------------------
 # Une fonction par type de créature : un seul endroit à modifier pour changer
 # ses stats, et chaque appel crée des objets NEUFS (sa propre IA, ses propres PV).
@@ -83,3 +97,9 @@ def make_orc(x: int, y: int) -> Actor:
 
 def make_health_potion(x: int, y: int) -> Item:
     return Item(x=x, y=y, char="!", name="potion de soin", consumable=Healing(amount=10))
+
+
+def make_arrow(x: int, y: int, dx: int, dy: int) -> Projectile:
+    """Flèche tirée depuis (x, y) vers (dx, dy). Son dessin suit sa direction."""
+    char = "-" if dy == 0 else "|"
+    return Projectile(x=x, y=y, char=char, name="flèche", dx=dx, dy=dy)

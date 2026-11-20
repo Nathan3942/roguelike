@@ -8,7 +8,7 @@ from __future__ import annotations
 import curses
 
 from game.engine import Engine
-from game.entities import Entity, Item
+from game.entities import Entity, Item, Projectile
 from game.input import TITLE_OPTIONS, Mode, UIState
 
 # Sous la carte : une ligne de statut (PV, seed, touches) + le journal.
@@ -32,6 +32,7 @@ COLOR_STYLES: dict[str, tuple[int, int]] = {
     "goblin": (curses.COLOR_GREEN, curses.A_NORMAL),
     "orc": (curses.COLOR_RED, curses.A_BOLD),
     "potion": (curses.COLOR_MAGENTA, curses.A_BOLD),
+    "arrow": (curses.COLOR_WHITE, curses.A_BOLD),
     "corpse": (curses.COLOR_RED, curses.A_NORMAL),
     "stairs": (curses.COLOR_CYAN, curses.A_BOLD),
     "wall": (curses.COLOR_WHITE, curses.A_BOLD),  # mur visible : blanc vif
@@ -54,7 +55,15 @@ MONOCHROME_STYLES: dict[str, int] = {
 STYLES: dict[str, int] = {}
 
 # Quel style pour quel caractère.
-ENTITY_STYLE_BY_CHAR = {"@": "player", "g": "goblin", "o": "orc", "!": "potion", "%": "corpse"}
+ENTITY_STYLE_BY_CHAR = {
+    "@": "player",
+    "g": "goblin",
+    "o": "orc",
+    "!": "potion",
+    "%": "corpse",
+    "-": "arrow",
+    "|": "arrow",
+}
 TILE_STYLE_BY_CHAR = {"#": "wall", ".": "floor", ">": "stairs"}
 
 
@@ -169,6 +178,22 @@ def draw_map(stdscr: curses.window, engine: Engine) -> None:
         safe_addstr(stdscr, y, x, char, attr)
 
 
+def render_layer(entity: Entity) -> int:
+    """Couche de dessin : les couches basses sont dessinées d'abord, donc
+    recouvertes par les suivantes si elles partagent une case.
+
+      0 cadavres, 1 objets (une potion sur un cadavre reste visible),
+      2 flèches en vol, 3 créatures vivantes (ce qui bloque le passage).
+    """
+    if entity.blocks_movement:
+        return 3
+    if isinstance(entity, Projectile):
+        return 2
+    if isinstance(entity, Item):
+        return 1
+    return 0
+
+
 def entity_style(entity: Entity) -> int:
     return style(ENTITY_STYLE_BY_CHAR.get(entity.char, ""))
 
@@ -179,16 +204,10 @@ def draw_entities(stdscr: curses.window, engine: Engine) -> None:
     Un monstre hors de vue n'est pas affiché, même sur une case explorée :
     on se souvient des lieux, pas de qui s'y trouvait.
 
-    Ordre de dessin (le dernier dessiné est au-dessus) :
-      1. les cadavres ;
-      2. les objets (une potion sur un cadavre reste visible) ;
-      3. ce qui bloque (monstres vivants) ;
-      4. le joueur, toujours au-dessus.
-    sorted() avec une clé tuple : comparaison élément par élément,
-    et False (0) passe avant True (1) → (F, F) < (F, T) < (T, F).
+    Ordre de dessin : voir render_layer. Le joueur est dessiné en tout dernier.
     """
     game_map = engine.game_map
-    for entity in sorted(game_map.entities, key=lambda e: (e.blocks_movement, isinstance(e, Item))):
+    for entity in sorted(game_map.entities, key=render_layer):
         if entity is engine.player:
             continue
         if (entity.x, entity.y) in game_map.visible:

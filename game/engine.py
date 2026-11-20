@@ -6,9 +6,10 @@ C'est ce qui permet de le tester avec unittest, sans terminal.
 
 Déroulement d'un tour :
   1. le joueur agit : se déplacer, attaquer (en « fonçant » sur un monstre),
-     attendre, ramasser / utiliser / jeter un objet, descendre ;
-  2. si son action a « coûté » un tour, on recalcule sa vision,
-     puis chaque monstre vivant agit à son tour ;
+     tirer une flèche, attendre, ramasser / utiliser / jeter un objet,
+     descendre ;
+  2. si son action a « coûté » un tour, on recalcule sa vision, les flèches
+     en vol avancent d'une case, puis chaque monstre vivant agit à son tour ;
   3. si l'action n'a rien fait (foncer dans un mur), le monde ne bouge pas.
 """
 
@@ -18,13 +19,14 @@ from game.actions import (
     Action,
     DescendAction,
     DropItemAction,
+    FireAction,
     MoveAction,
     PickupAction,
     QuitAction,
     UseItemAction,
     WaitAction,
 )
-from game.entities import Actor, Item
+from game.entities import Actor, Item, Projectile, make_arrow
 from game.fov import compute_fov
 from game.map import STAIRS, GameMap
 from game.messages import MessageLog, capitalize, elide
@@ -48,7 +50,8 @@ class Engine:
         if player not in game_map.entities:
             game_map.entities.append(player)
         self.update_fov()  # le joueur voit autour de lui dès le départ
-        self.log.add("Bienvenue ! g ramasser, i inventaire, > descendre, . attendre, q quitter.")
+        self.log.add("Bienvenue dans le donjon !")
+        self.log.add("g ramasser  i sac  wasd tirer  > descendre  . attendre  q quitter")
 
     # --- Actions du joueur -----------------------------------------------------
 
@@ -67,6 +70,8 @@ class Engine:
             took_turn = True
         elif isinstance(action, MoveAction):
             took_turn = self.bump(action.dx, action.dy)
+        elif isinstance(action, FireAction):
+            took_turn = self.fire(action.dx, action.dy)
         elif isinstance(action, PickupAction):
             took_turn = self.pickup()
         elif isinstance(action, UseItemAction):
@@ -184,6 +189,84 @@ class Engine:
         self.log.add(f"Jeté : {item.name}.")
         return True
 
+    # --- Tir à l'arc ----------------------------------------------------------------
+    #
+    # Une flèche est une entité Projectile qui avance d'une case par tour,
+    # uniquement quand le joueur agit (comme les monstres). Flèches infinies :
+    # tirer ne consomme rien, seulement un tour.
+
+    def fire(self, dx: int, dy: int) -> bool:
+        """Tire une flèche vers (dx, dy). Retourne True si un tour est passé.
+
+        La flèche naît sur la case du JOUEUR : c'est son premier déplacement,
+        en fin de ce même tour (move_projectiles), qui la pose sur la case
+        voisine. Ainsi une flèche avance exactement d'une case par tour,
+        y compris le tour du tir.
+        """
+        if not self.game_map.is_walkable(self.player.x + dx, self.player.y + dy):
+            self.log.add("Un mur vous empêche de tirer par là.")
+            return False  # tir impossible : pas de tour perdu
+        self.game_map.entities.append(make_arrow(self.player.x, self.player.y, dx, dy))
+        self.log.add("Vous tirez une flèche.")
+        return True
+
+    def projectiles(self) -> list[Projectile]:
+        return [e for e in self.game_map.entities if isinstance(e, Projectile)]
+
+    def living_monster_at(self, x: int, y: int) -> Actor | None:
+        """Le monstre vivant en (x, y), s'il y en a un (jamais le joueur)."""
+        for entity in self.game_map.entities:
+            if (
+                isinstance(entity, Actor)
+                and entity is not self.player
+                and entity.is_alive
+                and entity.x == x
+                and entity.y == y
+            ):
+                return entity
+        return None
+
+    def move_projectiles(self) -> None:
+        """Chaque flèche avance d'une case : elle touche un monstre, se brise
+        sur un mur, ou continue sa route."""
+        for arrow in self.projectiles():
+            next_x, next_y = arrow.x + arrow.dx, arrow.y + arrow.dy
+            if not self.game_map.is_walkable(next_x, next_y):
+                self.game_map.entities.remove(arrow)  # se brise contre le mur
+                continue
+            arrow.x, arrow.y = next_x, next_y
+            target = self.living_monster_at(next_x, next_y)
+            if target is not None:
+                self.arrow_hit(arrow, target)
+
+    def resolve_arrow_hits(self) -> None:
+        """Après le tour des monstres : un monstre qui a marché SUR une flèche
+        se la prend. Sans ça, flèche et monstre qui avancent l'un vers l'autre
+        pourraient se croiser sans se toucher :
+
+            tour N :    -> . g        (la flèche avance, le gobelin aussi)
+            tour N+1 :     g->        (ils ont échangé leurs places !)
+        """
+        for arrow in self.projectiles():
+            target = self.living_monster_at(arrow.x, arrow.y)
+            if target is not None:
+                self.arrow_hit(arrow, target)
+
+    def arrow_hit(self, arrow: Projectile, target: Actor) -> None:
+        """Une flèche touche un monstre : dégâts = puissance − défense."""
+        assert target.fighter is not None
+        self.game_map.entities.remove(arrow)  # la flèche est consommée
+        damage = max(arrow.power - target.fighter.defense, 0)
+        text = f"Votre flèche touche {elide('le', target.name)}"
+        if damage > 0:
+            plural = "s" if damage > 1 else ""
+            self.log.add(f"{text} : {damage} dégât{plural}.")
+            target.fighter.take_damage(damage)
+        else:
+            self.log.add(f"{text}, sans effet.")
+        if target.fighter.is_dead:
+            self.kill(target)
+
     # --- Combat ----------------------------------------------------------------
 
     def attack(self, attacker: Actor, target: Actor) -> None:
@@ -222,6 +305,10 @@ class Engine:
         # entre eux) : toute mort de monstre compte pour le score.
         self.kills += 1
         # Transformation sur place : même objet, mais inoffensif et traversable.
+        # PV à 0 : un cadavre n'est jamais « vivant », même si kill() est
+        # appelé directement (sans passer par des dégâts).
+        if actor.fighter is not None:
+            actor.fighter.hp = 0
         actor.char = "%"
         actor.blocks_movement = False
         actor.ai = None
@@ -234,7 +321,9 @@ class Engine:
         # La vision d'abord : les monstres décident selon la NOUVELLE position
         # du joueur (et ce qu'il voit maintenant).
         self.update_fov()
+        self.move_projectiles()
         self.handle_enemy_turns()
+        self.resolve_arrow_hits()
 
     def handle_enemy_turns(self) -> None:
         """Chaque monstre vivant joue une fois, dans l'ordre de la liste."""

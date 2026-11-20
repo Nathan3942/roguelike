@@ -27,6 +27,7 @@ from game.actions import (
     Action,
     DescendAction,
     DropItemAction,
+    FireAction,
     MoveAction,
     PickupAction,
     QuitAction,
@@ -55,6 +56,14 @@ MOVE_KEYS: dict[int, tuple[int, int]] = {
     ord("u"): (1, -1),
     ord("b"): (-1, 1),
     ord("n"): (1, 1),
+}
+
+# Tir à l'arc : w haut, a gauche, s bas, d droite (4 directions).
+FIRE_KEYS: dict[int, tuple[int, int]] = {
+    ord("w"): (0, -1),
+    ord("a"): (-1, 0),
+    ord("s"): (0, 1),
+    ord("d"): (1, 0),
 }
 
 QUIT_KEYS: set[int] = {ord("q")}
@@ -120,6 +129,9 @@ def handle_map_key(key: int, ui: UIState, engine: Engine) -> Action | None:
     if key in MOVE_KEYS:
         dx, dy = MOVE_KEYS[key]
         return MoveAction(dx, dy)
+    if key in FIRE_KEYS:
+        dx, dy = FIRE_KEYS[key]
+        return FireAction(dx, dy)
     return None
 
 
