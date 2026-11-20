@@ -122,7 +122,7 @@ Contrôles : flèches **et** `hjkl` (+ `yubn` diagonales), `g` ramasser, `i` inv
 | M3 | fait | `generate_dungeon(rng)` avec `random.Random(seed)` dédié. Salles en chaîne (chacune reliée à la précédente). Seed affichée sur une ligne de statut sous la carte (terminal min 80×41) et rappelée en quittant. Tests : connexité (BFS) sur 100 seeds, non-chevauchement, déterminisme. |
 | M4 | fait | Rayon 8, un rayon de Bresenham vers chaque case du cercle + passe « murs qui bordent du sol visible » (coins diagonaux seulement si vrai coin). `visible` / `explored` = ensembles dans `GameMap`. Exploré = gris (couleur 8 si ≥16 couleurs, sinon `A_DIM`). 18 tests. |
 | M5 | fait | `Actor` + `HostileAI` (voit le joueur = est dans `visible` ; pas diagonal puis glissement sur un axe). Entités dans `game_map.entities` (joueur compris), placées après les salles (plans M3 inchangés), jamais dans la 1re salle. Mur = pas de tour consommé. Ajout touche `.`/`5` = attendre. 27 tests. |
-| M6 | à faire | |
+| M6 | fait | `Fighter` (dégâts = attaque − défense, sans hasard). Joueur 30/5/2, gobelin 10/3/0, orc 16/4/1. Bump = attaque. Monstre mort → cadavre `%` traversable (même objet). Mort du joueur → `game_over`, bandeau centré, seul `q` agit. HUD : ligne PV + barre, 5 messages → terminal min 80×46. Élision « l'orc ». 40 tests. |
 | M7 | à faire | |
 | M8 | à faire | |
 | M9 | à faire | |

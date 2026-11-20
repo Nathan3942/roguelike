@@ -9,8 +9,10 @@ import curses
 
 from game.engine import Engine
 
-# Lignes réservées sous la carte (pour l'instant : une ligne de statut).
-HUD_HEIGHT = 1
+# Sous la carte : une ligne de statut (PV, seed, touches) + le journal.
+MESSAGE_LINES = 5
+HUD_HEIGHT = 1 + MESSAGE_LINES
+HP_BAR_WIDTH = 20
 
 # Numéro de la paire de couleurs « gris » (les paires se numérotent à partir de 1).
 REMEMBERED_PAIR = 1
@@ -100,10 +102,54 @@ def draw_map(stdscr: curses.window, engine: Engine) -> None:
             pass  # coin bas-droit, voir safe_addstr
 
 
+def hp_bar(hp: int, max_hp: int, width: int = HP_BAR_WIDTH) -> str:
+    """Barre de PV en texte, ex. « [==========          ] ».
+
+    Nombre de « = » proportionnel aux PV restants : hp / max_hp × largeur.
+    La division entière // arrondit vers le bas ; on garde au moins un « = »
+    tant qu'on est en vie, pour ne pas afficher une barre vide à 1 PV.
+    """
+    filled = hp * width // max_hp
+    if hp > 0:
+        filled = max(filled, 1)
+    return "[" + "=" * filled + " " * (width - filled) + "]"
+
+
 def draw_status_line(stdscr: curses.window, engine: Engine) -> None:
-    """Ligne de statut juste sous la carte."""
-    text = f"Seed : {engine.seed}   |   . : attendre   |   q : quitter"
-    safe_addstr(stdscr, engine.game_map.height, 0, text)
+    """Ligne de statut juste sous la carte : PV, seed, touches utiles."""
+    fighter = engine.player.fighter
+    assert fighter is not None
+    hp_text = f"PV {fighter.hp:>2}/{fighter.max_hp} {hp_bar(fighter.hp, fighter.max_hp)}"
+    text = f"{hp_text}   Seed {engine.seed}   . attendre  q quitter"
+    width = stdscr.getmaxyx()[1]
+    safe_addstr(stdscr, engine.game_map.height, 0, text[: width - 1])
+
+
+def draw_messages(stdscr: curses.window, engine: Engine) -> None:
+    """Les derniers messages, du plus ancien (en haut) au plus récent (en bas)."""
+    top = engine.game_map.height + 1
+    width = stdscr.getmaxyx()[1]
+    for row, text in enumerate(engine.log.last(MESSAGE_LINES)):
+        safe_addstr(stdscr, top + row, 0, text[: width - 1])
+
+
+def draw_game_over(stdscr: curses.window, engine: Engine) -> None:
+    """Bandeau centré par-dessus la carte (on voit encore qui nous a tué)."""
+    lines = [
+        "+--------------------------------+",
+        "|         VOUS ETES MORT         |",
+        "|                                |",
+        "|      Appuyez sur q pour        |",
+        "|           quitter.             |",
+        "+--------------------------------+",
+    ]
+    top = engine.game_map.height // 2 - len(lines) // 2
+    left = engine.game_map.width // 2 - len(lines[0]) // 2
+    for row, line in enumerate(lines):
+        try:
+            stdscr.addstr(top + row, left, line, curses.A_BOLD)
+        except curses.error:
+            pass
 
 
 def draw(stdscr: curses.window, engine: Engine) -> None:
@@ -119,6 +165,9 @@ def draw(stdscr: curses.window, engine: Engine) -> None:
         draw_map(stdscr, engine)
         draw_entities(stdscr, engine)
         draw_status_line(stdscr, engine)
+        draw_messages(stdscr, engine)
+        if engine.game_over:
+            draw_game_over(stdscr, engine)
     stdscr.refresh()
 
 
@@ -127,10 +176,15 @@ def draw_entities(stdscr: curses.window, engine: Engine) -> None:
 
     Un monstre hors de vue n'est pas affiché, même sur une case explorée :
     on se souvient des lieux, pas de qui s'y trouvait.
-    Le joueur est dessiné en dernier pour qu'il soit toujours au-dessus.
+
+    Ordre de dessin (le dernier dessiné est au-dessus) :
+      1. ce qui ne bloque pas (cadavres) ;
+      2. ce qui bloque (monstres vivants) ;
+      3. le joueur, toujours visible au-dessus d'un cadavre.
+    sorted() avec key=… : False (0) passe avant True (1).
     """
     game_map = engine.game_map
-    for entity in game_map.entities:
+    for entity in sorted(game_map.entities, key=lambda e: e.blocks_movement):
         if entity is engine.player:
             continue
         if (entity.x, entity.y) in game_map.visible:
