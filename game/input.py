@@ -147,3 +147,59 @@ def handle_item_menu_key(key: int, ui: UIState) -> Action | None:
         ui.mode = Mode.MAP
         return DropItemAction(ui.selected)
     return None
+
+
+# --- Écran titre (M10) ----------------------------------------------------------
+# La navigation est une fonction PURE (pas d'affichage, pas de curses.window) :
+# on peut la tester sans terminal. render.py dessine, main.py fait la boucle.
+
+
+class TitleChoice(Enum):
+    NEW = auto()
+    CONTINUE = auto()
+    QUIT = auto()
+
+
+# (choix, libellé, raccourci clavier)
+TITLE_OPTIONS: list[tuple[TitleChoice, str, str]] = [
+    (TitleChoice.NEW, "Nouvelle partie", "n"),
+    (TitleChoice.CONTINUE, "Continuer", "c"),
+    (TitleChoice.QUIT, "Quitter", "q"),
+]
+
+# Entrée peut arriver sous trois codes selon le terminal.
+ENTER_KEYS: set[int] = {10, 13, curses.KEY_ENTER}
+MENU_UP_KEYS: set[int] = {curses.KEY_UP, ord("k")}
+MENU_DOWN_KEYS: set[int] = {curses.KEY_DOWN, ord("j")}
+
+
+def next_enabled(selected: int, step: int, enabled: list[bool]) -> int:
+    """Index de la prochaine option active dans la direction `step` (±1).
+
+    Le modulo % fait « boucler » : après la dernière option, on revient à la
+    première. Une option désactivée (Continuer sans sauvegarde) est sautée.
+    """
+    index = selected
+    for _ in range(len(enabled)):
+        index = (index + step) % len(enabled)
+        if enabled[index]:
+            return index
+    return selected
+
+
+def title_menu_key(key: int, selected: int, enabled: list[bool]) -> tuple[int, TitleChoice | None]:
+    """Traite une touche sur l'écran titre.
+
+    Retourne (nouvelle sélection, choix validé ou None).
+    """
+    if key in MENU_UP_KEYS:
+        return next_enabled(selected, -1, enabled), None
+    if key in MENU_DOWN_KEYS:
+        return next_enabled(selected, +1, enabled), None
+    if key in ENTER_KEYS:
+        return selected, TITLE_OPTIONS[selected][0]
+    # Raccourci direct : « n », « c » ou « q ».
+    for index, (choice, _, shortcut) in enumerate(TITLE_OPTIONS):
+        if key == ord(shortcut) and enabled[index]:
+            return index, choice
+    return selected, None

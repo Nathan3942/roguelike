@@ -164,6 +164,7 @@ def engine_to_dict(engine: Engine) -> JSON:
         "version": SAVE_VERSION,
         "seed": engine.seed,
         "depth": engine.depth,
+        "kills": engine.kills,
         "map": map_to_dict(engine.game_map),
         # On garde l'ORDRE de la liste : c'est l'ordre de jeu des monstres.
         "entities": [entity_to_dict(e) for e in entities],
@@ -186,6 +187,8 @@ def engine_from_dict(data: JSON) -> Engine:
 
     # Le constructeur recalcule la vision (visible ⊂ explored, déjà rempli)…
     engine = Engine(game_map, player, seed=data["seed"], depth=data["depth"])
+    # .get(…, 0) : une sauvegarde faite avant M10 n'a pas ce champ.
+    engine.kills = data.get("kills", 0)
     # …mais ajoute aussi son message de bienvenue : on le remplace par le
     # journal sauvegardé.
     engine.log.messages = list(data["log"])

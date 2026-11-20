@@ -41,6 +41,7 @@ class Engine:
         self.depth = depth  # étage courant (1 = le premier)
         self.running = True  # passe à False quand le joueur quitte
         self.game_over = False  # passe à True à la mort du joueur
+        self.kills = 0  # monstres tués (pour le score)
         self.log = MessageLog()
         # Le joueur est une entité de la carte comme les autres : ainsi les
         # monstres le voient comme un obstacle (pas de superposition).
@@ -217,6 +218,9 @@ class Engine:
             return
 
         self.log.add(capitalize(f"{elide('le', actor.name)} meurt !"))
+        # Seul le joueur peut tuer un monstre (les monstres ne se battent pas
+        # entre eux) : toute mort de monstre compte pour le score.
+        self.kills += 1
         # Transformation sur place : même objet, mais inoffensif et traversable.
         actor.char = "%"
         actor.blocks_movement = False
