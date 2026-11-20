@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from game.actions import (
     Action,
+    DescendAction,
     DropItemAction,
     MoveAction,
     PickupAction,
@@ -61,6 +62,7 @@ QUIT_KEYS: set[int] = {ord("q")}
 WAIT_KEYS: set[int] = {ord("."), ord("5")}
 PICKUP_KEY = ord("g")
 INVENTORY_KEY = ord("i")
+DESCEND_KEY = ord(">")
 ESCAPE_KEY = 27
 CLOSE_MENU_KEYS: set[int] = {ESCAPE_KEY, ord("q")}
 
@@ -111,6 +113,8 @@ def handle_map_key(key: int, ui: UIState, engine: Engine) -> Action | None:
         return None
     if key == PICKUP_KEY:
         return PickupAction()
+    if key == DESCEND_KEY:
+        return DescendAction()
     if key in WAIT_KEYS:
         return WaitAction()
     if key in MOVE_KEYS:

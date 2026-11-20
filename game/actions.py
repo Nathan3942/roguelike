@@ -43,9 +43,22 @@ class DropItemAction:
 
 
 @dataclass(frozen=True)
+class DescendAction:
+    """Prendre l'escalier « > » sur lequel on se trouve."""
+
+
+@dataclass(frozen=True)
 class QuitAction:
     """Le joueur veut quitter le jeu."""
 
 
 # Une action possible est l'une des classes ci-dessus.
-Action = MoveAction | WaitAction | PickupAction | UseItemAction | DropItemAction | QuitAction
+Action = (
+    MoveAction
+    | WaitAction
+    | PickupAction
+    | UseItemAction
+    | DropItemAction
+    | DescendAction
+    | QuitAction
+)

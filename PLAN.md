@@ -124,6 +124,6 @@ Contrôles : flèches **et** `hjkl` (+ `yubn` diagonales), `g` ramasser, `i` inv
 | M5 | fait | `Actor` + `HostileAI` (voit le joueur = est dans `visible` ; pas diagonal puis glissement sur un axe). Entités dans `game_map.entities` (joueur compris), placées après les salles (plans M3 inchangés), jamais dans la 1re salle. Mur = pas de tour consommé. Ajout touche `.`/`5` = attendre. 27 tests. |
 | M6 | fait | `Fighter` (dégâts = attaque − défense, sans hasard). Joueur 30/5/2, gobelin 10/3/0, orc 16/4/1. Bump = attaque. Monstre mort → cadavre `%` traversable (même objet). Mort du joueur → `game_over`, bandeau centré, seul `q` agit. HUD : ligne PV + barre, 5 messages → terminal min 80×46. Élision « l'orc ». 40 tests. |
 | M7 | fait | `Item` + `Healing(10)` + `Inventory(10)`. 0–1 potion par salle, placée après les monstres. Potion refusée à PV max (pas gaspillée, pas de tour perdu). Modes d'interface dans `input.py` (carte → inventaire → menu objet : `u` utiliser, `j` jeter, Échap/`q` retour). `q` dans un menu ferme le menu sans quitter. 56 tests. |
-| M8 | à faire | |
+| M8 | fait | Tuile `STAIRS` au centre de la dernière salle. `generate_floor(seed, depth)` : un `Random("seed-depth")` par étage (⚠ le plan d'une seed a changé par rapport à M3–M7). `Difficulty.for_depth` : +10 % d'orcs/niveau, +2 PV, +1 monstre max et +1 att tous les 2 niveaux (plafonds). Même objet joueur conservé. Pas de remontée. `Niv N` dans le HUD. 67 tests. |
 | M9 | à faire | |
 | M10 | à faire | |

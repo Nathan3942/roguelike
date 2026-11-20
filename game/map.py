@@ -27,6 +27,7 @@ class Tile:
 # pointent vers le MÊME objet WALL : pas de copie, économie de mémoire.
 WALL = Tile(char="#", walkable=False, transparent=False)
 FLOOR = Tile(char=".", walkable=True, transparent=True)
+STAIRS = Tile(char=">", walkable=True, transparent=True)  # escalier qui descend
 
 
 class GameMap:

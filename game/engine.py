@@ -6,7 +6,7 @@ C'est ce qui permet de le tester avec unittest, sans terminal.
 
 Déroulement d'un tour :
   1. le joueur agit : se déplacer, attaquer (en « fonçant » sur un monstre),
-     attendre, ramasser / utiliser / jeter un objet ;
+     attendre, ramasser / utiliser / jeter un objet, descendre ;
   2. si son action a « coûté » un tour, on recalcule sa vision,
      puis chaque monstre vivant agit à son tour ;
   3. si l'action n'a rien fait (foncer dans un mur), le monde ne bouge pas.
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from game.actions import (
     Action,
+    DescendAction,
     DropItemAction,
     MoveAction,
     PickupAction,
@@ -25,17 +26,19 @@ from game.actions import (
 )
 from game.entities import Actor, Item
 from game.fov import compute_fov
-from game.map import GameMap
+from game.map import STAIRS, GameMap
 from game.messages import MessageLog, capitalize, elide
+from game.procgen import generate_floor
 
 FOV_RADIUS = 8
 
 
 class Engine:
-    def __init__(self, game_map: GameMap, player: Actor, seed: int) -> None:
+    def __init__(self, game_map: GameMap, player: Actor, seed: int, depth: int = 1) -> None:
         self.game_map = game_map
         self.player = player
-        self.seed = seed  # gardée pour l'afficher (et rejouer le même donjon)
+        self.seed = seed  # gardée pour l'afficher et générer les étages suivants
+        self.depth = depth  # étage courant (1 = le premier)
         self.running = True  # passe à False quand le joueur quitte
         self.game_over = False  # passe à True à la mort du joueur
         self.log = MessageLog()
@@ -44,7 +47,7 @@ class Engine:
         if player not in game_map.entities:
             game_map.entities.append(player)
         self.update_fov()  # le joueur voit autour de lui dès le départ
-        self.log.add("Bienvenue dans le donjon !")
+        self.log.add("Bienvenue ! g ramasser, i inventaire, > descendre, . attendre, q quitter.")
 
     # --- Actions du joueur -----------------------------------------------------
 
@@ -69,6 +72,8 @@ class Engine:
             took_turn = self.use_item(action.index)
         elif isinstance(action, DropItemAction):
             took_turn = self.drop_item(action.index)
+        elif isinstance(action, DescendAction):
+            self.descend()  # nouvel étage : les monstres n'agissent pas ce tour-ci
 
         if took_turn:
             self.end_turn()
@@ -100,6 +105,30 @@ class Engine:
         # Petit confort : signaler les objets sur la case d'arrivée.
         for item in self.items_at(new_x, new_y):
             self.log.add(f"Vous voyez ici : {item.name} (g pour ramasser).")
+        if self.game_map.get_tile(new_x, new_y) is STAIRS:
+            self.log.add("Un escalier descend ici (> pour descendre).")
+        return True
+
+    # --- Étages ------------------------------------------------------------------
+
+    def descend(self) -> bool:
+        """Descend à l'étage suivant si le joueur est sur l'escalier.
+
+        On génère une carte NEUVE, mais on garde le MÊME objet joueur :
+        ses PV et son sac le suivent sans rien copier. L'ancien étage est
+        simplement oublié (pas de retour en arrière).
+        """
+        if self.game_map.get_tile(self.player.x, self.player.y) is not STAIRS:
+            self.log.add("Il n'y a pas d'escalier ici.")
+            return False
+
+        self.depth += 1
+        game_map, rooms = generate_floor(self.seed, self.depth)
+        self.player.x, self.player.y = rooms[0].center
+        game_map.entities.append(self.player)
+        self.game_map = game_map
+        self.update_fov()
+        self.log.add(f"Vous descendez au niveau {self.depth}.")
         return True
 
     # --- Objets ------------------------------------------------------------------

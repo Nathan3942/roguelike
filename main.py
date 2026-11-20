@@ -17,7 +17,7 @@ from game.actions import QuitAction
 from game.engine import Engine
 from game.entities import make_player
 from game.input import QUIT_KEYS, UIState, handle_key
-from game.procgen import generate_dungeon
+from game.procgen import generate_floor
 from game.render import draw, init_styles, terminal_is_big_enough
 
 
@@ -34,8 +34,7 @@ def parse_args() -> argparse.Namespace:
 
 def new_game(seed: int) -> Engine:
     """Crée une partie complète à partir d'une seed."""
-    rng = random.Random(seed)  # générateur DÉDIÉ, pas le random global
-    game_map, rooms = generate_dungeon(rng)
+    game_map, rooms = generate_floor(seed, depth=1)
     start_x, start_y = rooms[0].center
     player = make_player(start_x, start_y)
     return Engine(game_map, player, seed)

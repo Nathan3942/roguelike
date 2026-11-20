@@ -124,8 +124,10 @@ def draw_status_line(stdscr: curses.window, engine: Engine) -> None:
     assert fighter is not None and inventory is not None
     hp_text = f"PV {fighter.hp:>2}/{fighter.max_hp} {hp_bar(fighter.hp, fighter.max_hp)}"
     bag_text = f"Sac {len(inventory.items)}/{inventory.capacity}"
-    keys_text = "g:ramasser i:sac q:quitter"
-    text = f"{hp_text}  {bag_text}  Seed {engine.seed}  {keys_text}"
+    # Place limitée (80 colonnes) : les autres touches sont rappelées dans le
+    # message de bienvenue.
+    keys_text = ">:descendre q:quitter"
+    text = f"{hp_text}  Niv {engine.depth}  {bag_text}  Seed {engine.seed}  {keys_text}"
     width = stdscr.getmaxyx()[1]
     safe_addstr(stdscr, engine.game_map.height, 0, text[: width - 1])
 

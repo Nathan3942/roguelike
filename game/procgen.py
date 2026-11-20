@@ -8,8 +8,14 @@ Algorithme (classique, simple à suivre) :
      en L. Les salles forment ainsi une chaîne 1 → 2 → 3 → … : toutes sont
      forcément connectées (c'est ce que vérifie le test unitaire).
   4. Une fois TOUTES les salles creusées, on place les monstres (sauf dans la
-     première salle, où démarre le joueur). Les faire après garde les mêmes
-     tirages pour la forme du donjon : une seed donne le même plan qu'en M3.
+     première salle, où démarre le joueur), puis les objets. Les faire après
+     garde les mêmes tirages pour la forme du donjon.
+  5. L'escalier « > » est au centre de la DERNIÈRE salle : la plus « loin »
+     dans la chaîne, il faut donc traverser le niveau pour le trouver.
+
+Étages (M8) : chaque étage a sa propre graine, dérivée de la seed de la partie
+et de la profondeur (voir generate_floor). Et la difficulté (voir Difficulty)
+augmente avec la profondeur.
 
 Reproductibilité : tout le hasard passe par un objet random.Random(seed)
 qu'on reçoit en paramètre (jamais le module `random` global). Même seed →
@@ -22,17 +28,49 @@ import random
 from collections.abc import Iterator
 from dataclasses import dataclass
 
+from game.entities import Actor
+
 from game.entities import make_goblin, make_health_potion, make_orc
-from game.map import FLOOR, WALL, GameMap
+from game.map import FLOOR, STAIRS, WALL, GameMap
 
 MAP_WIDTH = 80
 MAP_HEIGHT = 40
 MAX_ROOMS = 30
 ROOM_MIN_SIZE = 6
 ROOM_MAX_SIZE = 12
-MAX_MONSTERS_PER_ROOM = 2
-ORC_CHANCE = 0.2  # 20 % d'orcs, 80 % de gobelins
 MAX_ITEMS_PER_ROOM = 1
+
+
+@dataclass(frozen=True)
+class Difficulty:
+    """Réglages qui dépendent de la profondeur.
+
+    max_monsters : nombre max de monstres par salle
+    orc_chance   : proportion d'orcs (le reste : gobelins)
+    bonus_hp     : PV ajoutés à chaque monstre
+    bonus_attack : attaque ajoutée à chaque monstre
+    """
+
+    max_monsters: int
+    orc_chance: float
+    bonus_hp: int
+    bonus_attack: int
+
+    @classmethod
+    def for_depth(cls, depth: int) -> Difficulty:
+        """Formules simples, avec des plafonds pour rester jouable.
+
+        Niveau 1 : 2 monstres max, 20 % d'orcs, aucun bonus (comme en M5–M7).
+        Chaque niveau : +10 % d'orcs, +2 PV ; tous les 2 niveaux : +1 monstre
+        max et +1 attaque.
+        """
+        level = depth - 1  # 0 au premier étage
+        return cls(
+            max_monsters=min(2 + level // 2, 5),
+            orc_chance=min(0.2 + 0.1 * level, 0.8),
+            bonus_hp=2 * level,
+            bonus_attack=level // 2,
+        )
 
 
 @dataclass(frozen=True)
@@ -117,12 +155,13 @@ def generate_dungeon(
     max_rooms: int = MAX_ROOMS,
     room_min_size: int = ROOM_MIN_SIZE,
     room_max_size: int = ROOM_MAX_SIZE,
-    max_monsters_per_room: int = MAX_MONSTERS_PER_ROOM,
     max_items_per_room: int = MAX_ITEMS_PER_ROOM,
+    difficulty: Difficulty = Difficulty.for_depth(1),
 ) -> tuple[GameMap, list[RectangularRoom]]:
     """Crée un donjon. Retourne la carte et la liste des salles (dans l'ordre).
 
-    Le joueur commencera au centre de rooms[0].
+    Le joueur commencera au centre de rooms[0] ; l'escalier est au centre
+    de rooms[-1].
     """
     game_map = GameMap(map_width, map_height, fill=WALL)
     rooms: list[RectangularRoom] = []
@@ -149,9 +188,12 @@ def generate_dungeon(
 
         rooms.append(new_room)
 
+    stairs_x, stairs_y = rooms[-1].center
+    game_map.set_tile(stairs_x, stairs_y, STAIRS)
+
     # rooms[1:] : la première salle (départ du joueur) reste sans monstre.
     for room in rooms[1:]:
-        place_monsters(game_map, room, rng, max_monsters_per_room)
+        place_monsters(game_map, room, rng, difficulty)
 
     # Les objets en dernier (même raison : les monstres restent ceux de M5).
     # Ici toutes les salles, première comprise.
@@ -161,20 +203,42 @@ def generate_dungeon(
     return game_map, rooms
 
 
+def generate_floor(seed: int, depth: int) -> tuple[GameMap, list[RectangularRoom]]:
+    """Génère l'étage `depth` d'une partie de graine `seed`.
+
+    Chaque étage a son propre générateur, initialisé avec la chaîne
+    "seed-profondeur" (ex. "42-3"). Python transforme une chaîne en graine de
+    façon stable d'une exécution à l'autre. Conséquences :
+      - même seed + même profondeur → même étage, toujours ;
+      - l'étage 3 ne dépend pas de ce qu'on a fait aux étages 1 et 2.
+    """
+    rng = random.Random(f"{seed}-{depth}")
+    return generate_dungeon(rng, difficulty=Difficulty.for_depth(depth))
+
+
+def strengthen(monster: Actor, difficulty: Difficulty) -> None:
+    """Applique les bonus de profondeur à un monstre fraîchement créé."""
+    assert monster.fighter is not None
+    monster.fighter.max_hp += difficulty.bonus_hp
+    monster.fighter.hp += difficulty.bonus_hp
+    monster.fighter.attack += difficulty.bonus_attack
+
+
 def place_monsters(
-    game_map: GameMap, room: RectangularRoom, rng: random.Random, max_monsters: int
+    game_map: GameMap, room: RectangularRoom, rng: random.Random, difficulty: Difficulty
 ) -> None:
-    """Place entre 0 et max_monsters monstres sur des cases libres de la salle."""
-    count = rng.randint(0, max_monsters)
+    """Place entre 0 et difficulty.max_monsters monstres sur des cases libres."""
+    count = rng.randint(0, difficulty.max_monsters)
     for _ in range(count):
         x = rng.randint(room.x1 + 1, room.x2 - 1)
         y = rng.randint(room.y1 + 1, room.y2 - 1)
         if not game_map.is_free(x, y):
             continue  # case déjà prise : on renonce à ce monstre (plus simple)
-        if rng.random() < ORC_CHANCE:
+        if rng.random() < difficulty.orc_chance:
             monster = make_orc(x, y)
         else:
             monster = make_goblin(x, y)
+        strengthen(monster, difficulty)
         game_map.entities.append(monster)
 
 
