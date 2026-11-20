@@ -340,26 +340,130 @@ def draw(stdscr: curses.window, engine: Engine, ui: UIState) -> None:
 
 GAME_TITLE = "Donjon ASCII"  # nom affiché (modifiable librement)
 
+# Dessins de l'écran titre. Chaînes « brutes » (r"""…""") : les antislashs
+# « \ » y sont pris tels quels au lieu de démarrer une séquence comme « \n ».
+# Piège : une chaîne brute ne peut pas FINIR par un antislash.
+TITLE_CASTLE = r"""
+       |>>>                          |>>>                          |>>>
+       |                             |                _.           |
+      /^\        \,/             _   _   _    v      ( (          /^\
+     / ' \                      |=|_|=|_|=|           `-'        / ' \
+    /' ' '\          v          |   /^\   |                     /' ' '\
+   / ' ' ' \                    |   |#|   |                    / ' ' ' \
+  /' ' ' ' '\            _   _  |         |  _   _            /' ' ' ' '\
+ /___________\          |=|_|=|_|=|_|=|_|=|_|=|_|=|          /___________\
+  |_|_|_|_|_|           |_|_|_|_|_|_|_|_|_|_|_|_|_|           |_|_|_|_|_|
+  | _|      |           |  .-.               .-.  |           |      |_ |
+  |   [|]   | [_]  [_]  |  |*|   /\     /\   |*|  |  [_]  [_] |   [|]   |
+  |   [|]   |___________|  |*|   ||     ||   |*|  |___________|   [|]   |
+  |      _| |           |  \ /               \ /  |           | |_      |
+  |   /^\   |  [|]  [|] |   V     _______     V   | [|]  [|]  |   /^\   |
+  |   |#|   |           |        /       \        |           |   |#|   |
+  |   |_|   | _|        |   (*) / |-+-+-| \ (*)   |        |_ |   |_|   |
+  | _|      |        _| |    |  | |-+-+-| |  |    | |_        |      |_ |
+  |      _| |     _|    | _|    | |-+-+-| |    |_ |    |_     | |_      |
+  |   [|]   |           |       | |-+-+-| |       |           |   [|]   |
+  |  _|     |  _|       |  _|   | |-+-+-| |   |_  |       |_  |     |_  |
+  |         |           |       | |-+-+-| |       |           |         |
+_______________________________|___________|_______________________________
+ ~~~   ~~~~   ~~~   ~~~~   ~~~ |=|=|=|=|=|=|  ~~~~   ~~~   ~~~~   ~~~   ~~~
+~~   ~~~~   ~~~~~   ~~~   ~~~~~|=|=|=|=|=|=|~   ~~~   ~~~~~   ~~~   ~~~~~
+ ,  ' ,   .  ,  '  ,  .   ' , /             \ ,  '  ,  .   ' ,  .  ,  ' , .
+""".strip("\n").splitlines()
+
+TITLE_BIG_TEXT = r"""
+ ___     ___    _  _      _    ___    _  _
+|   \   / _ \  | \| |  _ | |  / _ \  | \| |
+| |) | | (_) | | .` | | || | | (_) | | .` |
+|___/   \___/  |_|\_|  \__/   \___/  |_|\_|
+""".strip("\n").splitlines()
+
+TITLE_SUBTITLE = "~  A  S  C  I  I  ~"
+
+# Couleur de certains caractères du château ; tout le reste en style « wall ».
+CASTLE_CHAR_STYLES = {
+    ">": "danger",      # drapeaux rouges
+    "~": "stairs",      # douves cyan
+    "+": "remembered",  # herse grise
+    "*": "title",       # torches et bannières jaunes
+    "#": "title",       # fenêtres éclairées
+    ",": "goblin",      # herbe verte
+}
+
+
+def art_width(lines: list[str]) -> int:
+    return max(len(line) for line in lines)
+
+
+def draw_art(stdscr: curses.window, top: int, lines: list[str], char_styles: dict[str, str], default: str) -> None:
+    """Dessine un bloc ASCII art centré horizontalement, caractère par caractère.
+
+    Toutes les lignes partagent la MÊME marge gauche (calculée sur la plus
+    large) : centrer chaque ligne séparément décalerait les murs et déformerait
+    le dessin. Les espaces ne sont pas dessinés (le fond reste propre).
+    """
+    width = stdscr.getmaxyx()[1]
+    left = max((width - art_width(lines)) // 2, 0)
+    for row, line in enumerate(lines):
+        for col, char in enumerate(line):
+            if char != " ":
+                safe_addstr(stdscr, top + row, left + col, char, style(char_styles.get(char, default)))
+
+
+def title_menu_lines(selected: int, enabled: list[bool]) -> list[tuple[str, int]]:
+    """Les lignes du menu (texte, style), communes aux deux mises en page."""
+    lines: list[tuple[str, int]] = []
+    for index, (_, label, shortcut) in enumerate(TITLE_OPTIONS):
+        if not enabled[index]:
+            text, attr = f"   {label} ({shortcut})   ", style("remembered")  # grisée
+        elif index == selected:
+            # Flèches de part et d'autre + vidéo inverse : bien visible.
+            text, attr = f">  {label} ({shortcut})  <", curses.A_REVERSE | curses.A_BOLD
+        else:
+            text, attr = f"   {label} ({shortcut})   ", curses.A_NORMAL
+        lines.append((text, attr))
+    return lines
+
 
 def draw_title(stdscr: curses.window, selected: int, enabled: list[bool], notice: str = "") -> None:
-    """Écran titre : nom du jeu, options (la sélection est en vidéo inverse)."""
+    """Écran titre : château, nom du jeu en grandes lettres, menu.
+
+    Deux mises en page :
+    - grand terminal : château + grand titre + menu ;
+    - petit terminal : version compacte (le dessin ne tiendrait pas).
+    """
     stdscr.erase()
-    lines: list[tuple[str, int]] = [(GAME_TITLE.upper(), style("title")), ("", 0)]
-    lines.append(("@ . . . g . . . . o . . . ! . . . >", style("stairs")))
-    lines += [("", 0), ("", 0)]
-    for index, (_, label, shortcut) in enumerate(TITLE_OPTIONS):
-        text = f"  {label} ({shortcut})  "
-        if not enabled[index]:
-            attr = style("remembered")  # option grisée (pas de sauvegarde)
-        elif index == selected:
-            attr = curses.A_REVERSE | curses.A_BOLD  # vidéo inverse = sélection
-        else:
-            attr = curses.A_NORMAL
-        lines.append((text, attr))
-    lines += [("", 0), ("Flèches / j k : choisir   Entrée : valider", style("remembered"))]
+    height, width = stdscr.getmaxyx()
+    menu = title_menu_lines(selected, enabled)
+    hint = ("Flèches / j k : choisir   Entrée : valider", style("remembered"))
+    footer: list[tuple[str, int]] = [("", 0), *menu, ("", 0), hint]
     if notice:
-        lines += [("", 0), (notice, style("danger"))]
-    draw_centered(stdscr, lines)
+        footer += [("", 0), (notice, style("danger"))]
+
+    # Hauteur totale de la grande version : château, 1 blanc, titre, sous-titre.
+    art_height = len(TITLE_CASTLE) + 1 + len(TITLE_BIG_TEXT) + 1
+    fits = width > art_width(TITLE_CASTLE) and height >= art_height + len(footer) + 2
+
+    if not fits:
+        # Version compacte (celle d'avant), centrée ligne par ligne.
+        compact = [(GAME_TITLE.upper(), style("title")), ("", 0)]
+        compact.append(("@ . . . g . . . . o . . . ! . . . >", style("stairs")))
+        draw_centered(stdscr, compact + [("", 0)] + footer)
+        stdscr.refresh()
+        return
+
+    # Grande version : tout le bloc est centré verticalement.
+    top = max((height - art_height - len(footer)) // 2, 0)
+    draw_art(stdscr, top, TITLE_CASTLE, CASTLE_CHAR_STYLES, default="wall")
+    title_top = top + len(TITLE_CASTLE) + 1
+    draw_art(stdscr, title_top, TITLE_BIG_TEXT, {}, default="title")
+    subtitle_row = title_top + len(TITLE_BIG_TEXT)
+    left = max((width - len(TITLE_SUBTITLE)) // 2, 0)
+    safe_addstr(stdscr, subtitle_row, left, TITLE_SUBTITLE, style("title"))
+
+    # Le menu sous le titre, chaque ligne centrée (pas un dessin : pas de souci).
+    for offset, (text, attr) in enumerate(footer, start=1):
+        safe_addstr(stdscr, subtitle_row + offset, max((width - len(text)) // 2, 0), text, attr)
     stdscr.refresh()
 
 
