@@ -5,8 +5,8 @@ est affiché ; il ne fait que des calculs sur la carte et les entités.
 C'est ce qui permet de le tester avec unittest, sans terminal.
 
 Déroulement d'un tour :
-  1. le joueur agit : se déplacer, attaquer (en « fonçant » sur un monstre)
-     ou attendre ;
+  1. le joueur agit : se déplacer, attaquer (en « fonçant » sur un monstre),
+     attendre, ramasser / utiliser / jeter un objet ;
   2. si son action a « coûté » un tour, on recalcule sa vision,
      puis chaque monstre vivant agit à son tour ;
   3. si l'action n'a rien fait (foncer dans un mur), le monde ne bouge pas.
@@ -14,8 +14,16 @@ Déroulement d'un tour :
 
 from __future__ import annotations
 
-from game.actions import Action, MoveAction, QuitAction, WaitAction
-from game.entities import Actor
+from game.actions import (
+    Action,
+    DropItemAction,
+    MoveAction,
+    PickupAction,
+    QuitAction,
+    UseItemAction,
+    WaitAction,
+)
+from game.entities import Actor, Item
 from game.fov import compute_fov
 from game.map import GameMap
 from game.messages import MessageLog, capitalize, elide
@@ -48,12 +56,22 @@ class Engine:
         if self.game_over:
             return  # mort : plus rien ne se passe, seul « quitter » compte
 
+        # Chaque branche calcule « l'action a-t-elle pris du temps ? ».
+        # Une action ratée (mur, sac plein, rien à ramasser…) ne coûte rien.
+        took_turn = False
         if isinstance(action, WaitAction):
-            self.end_turn()
+            took_turn = True
         elif isinstance(action, MoveAction):
-            if self.bump(action.dx, action.dy):
-                self.end_turn()
-            # Action sans effet (mur) : pas de tour consommé.
+            took_turn = self.bump(action.dx, action.dy)
+        elif isinstance(action, PickupAction):
+            took_turn = self.pickup()
+        elif isinstance(action, UseItemAction):
+            took_turn = self.use_item(action.index)
+        elif isinstance(action, DropItemAction):
+            took_turn = self.drop_item(action.index)
+
+        if took_turn:
+            self.end_turn()
 
     def bump(self, dx: int, dy: int) -> bool:
         """« Foncer » dans une direction : attaque s'il y a un monstre, sinon
@@ -79,6 +97,61 @@ class Engine:
             return False
         self.player.x = new_x
         self.player.y = new_y
+        # Petit confort : signaler les objets sur la case d'arrivée.
+        for item in self.items_at(new_x, new_y):
+            self.log.add(f"Vous voyez ici : {item.name} (g pour ramasser).")
+        return True
+
+    # --- Objets ------------------------------------------------------------------
+
+    def items_at(self, x: int, y: int) -> list[Item]:
+        """Les objets posés au sol en (x, y)."""
+        return [e for e in self.game_map.entities if isinstance(e, Item) and e.x == x and e.y == y]
+
+    def pickup(self) -> bool:
+        """Ramasse UN objet sous le joueur. Retourne True si un tour est passé."""
+        inventory = self.player.inventory
+        assert inventory is not None
+        items = self.items_at(self.player.x, self.player.y)
+        if not items:
+            self.log.add("Il n'y a rien à ramasser ici.")
+            return False
+        if inventory.is_full:
+            self.log.add("Votre sac est plein.")
+            return False
+        item = items[0]
+        # L'objet QUITTE la carte et ENTRE dans le sac : il n'est jamais aux
+        # deux endroits à la fois.
+        self.game_map.entities.remove(item)
+        inventory.items.append(item)
+        self.log.add(f"Ramassé : {item.name}.")
+        return True
+
+    def use_item(self, index: int) -> bool:
+        """Utilise l'objet n° index du sac. Retourne True si un tour est passé."""
+        inventory = self.player.inventory
+        assert inventory is not None
+        if not 0 <= index < len(inventory.items):
+            return False
+        item = inventory.items[index]
+        if item.consumable is None:
+            self.log.add(f"Impossible d'utiliser : {item.name}.")
+            return False
+        consumed = item.consumable.use(self.player, self)
+        if consumed:
+            inventory.items.remove(item)
+        return consumed
+
+    def drop_item(self, index: int) -> bool:
+        """Pose l'objet n° index du sac aux pieds du joueur."""
+        inventory = self.player.inventory
+        assert inventory is not None
+        if not 0 <= index < len(inventory.items):
+            return False
+        item = inventory.items.pop(index)
+        item.x, item.y = self.player.x, self.player.y
+        self.game_map.entities.append(item)
+        self.log.add(f"Jeté : {item.name}.")
         return True
 
     # --- Combat ----------------------------------------------------------------

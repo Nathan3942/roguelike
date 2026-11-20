@@ -8,11 +8,13 @@ from __future__ import annotations
 import curses
 
 from game.engine import Engine
+from game.entities import Item
+from game.input import Mode, UIState
 
 # Sous la carte : une ligne de statut (PV, seed, touches) + le journal.
 MESSAGE_LINES = 5
 HUD_HEIGHT = 1 + MESSAGE_LINES
-HP_BAR_WIDTH = 20
+HP_BAR_WIDTH = 10
 
 # Numéro de la paire de couleurs « gris » (les paires se numérotent à partir de 1).
 REMEMBERED_PAIR = 1
@@ -116,11 +118,14 @@ def hp_bar(hp: int, max_hp: int, width: int = HP_BAR_WIDTH) -> str:
 
 
 def draw_status_line(stdscr: curses.window, engine: Engine) -> None:
-    """Ligne de statut juste sous la carte : PV, seed, touches utiles."""
+    """Ligne de statut juste sous la carte : PV, sac, seed, touches utiles."""
     fighter = engine.player.fighter
-    assert fighter is not None
+    inventory = engine.player.inventory
+    assert fighter is not None and inventory is not None
     hp_text = f"PV {fighter.hp:>2}/{fighter.max_hp} {hp_bar(fighter.hp, fighter.max_hp)}"
-    text = f"{hp_text}   Seed {engine.seed}   . attendre  q quitter"
+    bag_text = f"Sac {len(inventory.items)}/{inventory.capacity}"
+    keys_text = "g:ramasser i:sac q:quitter"
+    text = f"{hp_text}  {bag_text}  Seed {engine.seed}  {keys_text}"
     width = stdscr.getmaxyx()[1]
     safe_addstr(stdscr, engine.game_map.height, 0, text[: width - 1])
 
@@ -133,26 +138,52 @@ def draw_messages(stdscr: curses.window, engine: Engine) -> None:
         safe_addstr(stdscr, top + row, 0, text[: width - 1])
 
 
-def draw_game_over(stdscr: curses.window, engine: Engine) -> None:
-    """Bandeau centré par-dessus la carte (on voit encore qui nous a tué)."""
-    lines = [
-        "+--------------------------------+",
-        "|         VOUS ETES MORT         |",
-        "|                                |",
-        "|      Appuyez sur q pour        |",
-        "|           quitter.             |",
-        "+--------------------------------+",
-    ]
-    top = engine.game_map.height // 2 - len(lines) // 2
-    left = engine.game_map.width // 2 - len(lines[0]) // 2
-    for row, line in enumerate(lines):
+def draw_box(stdscr: curses.window, engine: Engine, lines: list[str]) -> None:
+    """Dessine une boîte encadrée, centrée sur la carte, contenant `lines`.
+
+    La largeur s'adapte à la plus longue ligne. Sert au game over et aux menus.
+    """
+    inner_width = max(len(line) for line in lines) + 2  # 1 espace de marge de chaque côté
+    border = "+" + "-" * inner_width + "+"
+    boxed = [border] + [f"| {line.ljust(inner_width - 2)} |" for line in lines] + [border]
+
+    top = max(engine.game_map.height // 2 - len(boxed) // 2, 0)
+    left = max(engine.game_map.width // 2 - len(border) // 2, 0)
+    for row, line in enumerate(boxed):
         try:
             stdscr.addstr(top + row, left, line, curses.A_BOLD)
         except curses.error:
             pass
 
 
-def draw(stdscr: curses.window, engine: Engine) -> None:
+def draw_game_over(stdscr: curses.window, engine: Engine) -> None:
+    """Bandeau centré par-dessus la carte (on voit encore qui nous a tué)."""
+    draw_box(stdscr, engine, ["", "      VOUS ETES MORT      ", "", "  Appuyez sur q pour quitter.", ""])
+
+
+def draw_inventory(stdscr: curses.window, engine: Engine) -> None:
+    """Liste du sac : « a) potion de soin », « b) … »."""
+    inventory = engine.player.inventory
+    assert inventory is not None
+    lines = [f"Inventaire ({len(inventory.items)}/{inventory.capacity})", ""]
+    if not inventory.items:
+        lines.append("(vide)")
+    for index, item in enumerate(inventory.items):
+        letter = chr(ord("a") + index)  # 0 → 'a', 1 → 'b'…
+        lines.append(f"{letter}) {item.name}")
+    lines += ["", "Lettre : choisir   Echap : fermer"]
+    draw_box(stdscr, engine, lines)
+
+
+def draw_item_menu(stdscr: curses.window, engine: Engine, ui: UIState) -> None:
+    """Que faire de l'objet choisi ?"""
+    inventory = engine.player.inventory
+    assert inventory is not None
+    item = inventory.items[ui.selected]
+    draw_box(stdscr, engine, [item.name, "", "u : utiliser", "j : jeter", "", "Echap : retour"])
+
+
+def draw(stdscr: curses.window, engine: Engine, ui: UIState) -> None:
     """Redessine tout l'écran.
 
     Anti-clignotement : erase() (vide le tampon) et non clear() (qui force
@@ -168,6 +199,10 @@ def draw(stdscr: curses.window, engine: Engine) -> None:
         draw_messages(stdscr, engine)
         if engine.game_over:
             draw_game_over(stdscr, engine)
+        elif ui.mode is Mode.INVENTORY:
+            draw_inventory(stdscr, engine)
+        elif ui.mode is Mode.ITEM_MENU:
+            draw_item_menu(stdscr, engine, ui)
     stdscr.refresh()
 
 
@@ -178,13 +213,15 @@ def draw_entities(stdscr: curses.window, engine: Engine) -> None:
     on se souvient des lieux, pas de qui s'y trouvait.
 
     Ordre de dessin (le dernier dessiné est au-dessus) :
-      1. ce qui ne bloque pas (cadavres) ;
-      2. ce qui bloque (monstres vivants) ;
-      3. le joueur, toujours visible au-dessus d'un cadavre.
-    sorted() avec key=… : False (0) passe avant True (1).
+      1. les cadavres ;
+      2. les objets (une potion sur un cadavre reste visible) ;
+      3. ce qui bloque (monstres vivants) ;
+      4. le joueur, toujours au-dessus.
+    sorted() avec une clé tuple : comparaison élément par élément,
+    et False (0) passe avant True (1) → (F, F) < (F, T) < (T, F).
     """
     game_map = engine.game_map
-    for entity in sorted(game_map.entities, key=lambda e: e.blocks_movement):
+    for entity in sorted(game_map.entities, key=lambda e: (e.blocks_movement, isinstance(e, Item))):
         if entity is engine.player:
             continue
         if (entity.x, entity.y) in game_map.visible:

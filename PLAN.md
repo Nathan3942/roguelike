@@ -123,7 +123,7 @@ Contrôles : flèches **et** `hjkl` (+ `yubn` diagonales), `g` ramasser, `i` inv
 | M4 | fait | Rayon 8, un rayon de Bresenham vers chaque case du cercle + passe « murs qui bordent du sol visible » (coins diagonaux seulement si vrai coin). `visible` / `explored` = ensembles dans `GameMap`. Exploré = gris (couleur 8 si ≥16 couleurs, sinon `A_DIM`). 18 tests. |
 | M5 | fait | `Actor` + `HostileAI` (voit le joueur = est dans `visible` ; pas diagonal puis glissement sur un axe). Entités dans `game_map.entities` (joueur compris), placées après les salles (plans M3 inchangés), jamais dans la 1re salle. Mur = pas de tour consommé. Ajout touche `.`/`5` = attendre. 27 tests. |
 | M6 | fait | `Fighter` (dégâts = attaque − défense, sans hasard). Joueur 30/5/2, gobelin 10/3/0, orc 16/4/1. Bump = attaque. Monstre mort → cadavre `%` traversable (même objet). Mort du joueur → `game_over`, bandeau centré, seul `q` agit. HUD : ligne PV + barre, 5 messages → terminal min 80×46. Élision « l'orc ». 40 tests. |
-| M7 | à faire | |
+| M7 | fait | `Item` + `Healing(10)` + `Inventory(10)`. 0–1 potion par salle, placée après les monstres. Potion refusée à PV max (pas gaspillée, pas de tour perdu). Modes d'interface dans `input.py` (carte → inventaire → menu objet : `u` utiliser, `j` jeter, Échap/`q` retour). `q` dans un menu ferme le menu sans quitter. 56 tests. |
 | M8 | à faire | |
 | M9 | à faire | |
 | M10 | à faire | |

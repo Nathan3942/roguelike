@@ -24,9 +24,28 @@ class WaitAction:
 
 
 @dataclass(frozen=True)
+class PickupAction:
+    """Ramasser l'objet sur lequel on se trouve."""
+
+
+@dataclass(frozen=True)
+class UseItemAction:
+    """Utiliser l'objet n° `index` de l'inventaire."""
+
+    index: int
+
+
+@dataclass(frozen=True)
+class DropItemAction:
+    """Jeter (poser au sol) l'objet n° `index` de l'inventaire."""
+
+    index: int
+
+
+@dataclass(frozen=True)
 class QuitAction:
     """Le joueur veut quitter le jeu."""
 
 
 # Une action possible est l'une des classes ci-dessus.
-Action = MoveAction | WaitAction | QuitAction
+Action = MoveAction | WaitAction | PickupAction | UseItemAction | DropItemAction | QuitAction

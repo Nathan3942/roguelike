@@ -39,9 +39,10 @@ class PlacementTests(unittest.TestCase):
         for seed in range(100):
             with self.subTest(seed=seed):
                 game_map, rooms = generate_dungeon(random.Random(seed))
-                monsters = game_map.entities
+                monsters = [e for e in game_map.entities if isinstance(e, Actor)]
+                # Pas de doublon : ni deux monstres, ni un monstre et un objet.
                 coords = positions(game_map)
-                self.assertEqual(len(coords), len(set(coords)))  # pas de doublon
+                self.assertEqual(len(coords), len(set(coords)))
                 for m in monsters:
                     self.assertTrue(game_map.is_walkable(m.x, m.y))
                     self.assertIn(m.char, ("g", "o"))
@@ -50,7 +51,11 @@ class PlacementTests(unittest.TestCase):
                     self.assertFalse(r.x1 < m.x < r.x2 and r.y1 < m.y < r.y2)
 
     def test_dungeons_do_have_monsters(self) -> None:
-        total = sum(len(generate_dungeon(random.Random(s))[0].entities) for s in range(20))
+        total = sum(
+            isinstance(e, Actor)
+            for s in range(20)
+            for e in generate_dungeon(random.Random(s))[0].entities
+        )
         self.assertGreater(total, 0)
 
 

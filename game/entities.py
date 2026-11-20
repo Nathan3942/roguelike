@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from game.components import Fighter, HostileAI
+from game.components import Fighter, Healing, HostileAI, Inventory
 
 
 @dataclass
@@ -36,10 +36,21 @@ class Actor(Entity):
     blocks_movement: bool = True
     ai: HostileAI | None = None
     fighter: Fighter | None = None
+    inventory: Inventory | None = None  # seul le joueur en a un
 
     @property
     def is_alive(self) -> bool:
         return self.fighter is not None and not self.fighter.is_dead
+
+
+@dataclass
+class Item(Entity):
+    """Un objet qu'on peut ramasser. Ne bloque pas le passage (hérité : False).
+
+    consumable : son effet quand on l'utilise (None = objet sans usage).
+    """
+
+    consumable: Healing | None = None
 
 
 # --- Fabriques -----------------------------------------------------------------
@@ -52,6 +63,7 @@ def make_player(x: int, y: int) -> Actor:
     return Actor(
         x=x, y=y, char="@", name="joueur",
         fighter=Fighter(max_hp=30, hp=30, attack=5, defense=2),
+        inventory=Inventory(capacity=10),
     )
 
 
@@ -67,3 +79,7 @@ def make_orc(x: int, y: int) -> Actor:
         x=x, y=y, char="o", name="orc", ai=HostileAI(),
         fighter=Fighter(max_hp=16, hp=16, attack=4, defense=1),
     )
+
+
+def make_health_potion(x: int, y: int) -> Item:
+    return Item(x=x, y=y, char="!", name="potion de soin", consumable=Healing(amount=10))

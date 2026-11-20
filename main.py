@@ -16,7 +16,7 @@ import random
 from game.actions import QuitAction
 from game.engine import Engine
 from game.entities import make_player
-from game.input import key_to_action
+from game.input import QUIT_KEYS, UIState, handle_key
 from game.procgen import generate_dungeon
 from game.render import draw, init_styles, terminal_is_big_enough
 
@@ -44,24 +44,29 @@ def new_game(seed: int) -> Engine:
 def main(stdscr: curses.window, engine: Engine) -> None:
     """Boucle principale. curses.wrapper() nous fournit stdscr déjà initialisé."""
     curses.curs_set(0)  # cache le curseur clignotant du terminal
+    # Par défaut, curses attend 1 s après Échap (au cas où ce serait le début
+    # d'une séquence comme une flèche). 25 ms suffisent et rendent Échap réactif.
+    curses.set_escdelay(25)
     init_styles()  # couleurs / atténuation pour les zones explorées
+    ui = UIState()  # mode d'interface : carte, inventaire, menu d'objet
 
     while engine.running:
-        draw(stdscr, engine)
+        draw(stdscr, engine, ui)
 
         key = stdscr.getch()  # bloquant : attend une touche
-        # KEY_RESIZE (fenêtre redimensionnée) n'a pas d'action associée :
+        # KEY_RESIZE (fenêtre redimensionnée) ne donne aucune action :
         # on reboucle simplement, et draw() s'adapte à la nouvelle taille.
-        action = key_to_action(key)
-        if action is None:
-            continue
 
         # Terminal trop petit : le joueur ne voit pas la carte, on n'accepte
-        # donc que « quitter » pour éviter de bouger à l'aveugle.
-        if not terminal_is_big_enough(stdscr, engine) and not isinstance(action, QuitAction):
+        # donc que « quitter » pour éviter de jouer à l'aveugle.
+        if not terminal_is_big_enough(stdscr, engine):
+            if key in QUIT_KEYS:
+                engine.handle_action(QuitAction())
             continue
 
-        engine.handle_action(action)
+        action = handle_key(key, ui, engine)
+        if action is not None:
+            engine.handle_action(action)
 
 
 if __name__ == "__main__":

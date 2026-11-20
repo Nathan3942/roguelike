@@ -22,7 +22,7 @@ import random
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-from game.entities import make_goblin, make_orc
+from game.entities import make_goblin, make_health_potion, make_orc
 from game.map import FLOOR, WALL, GameMap
 
 MAP_WIDTH = 80
@@ -32,6 +32,7 @@ ROOM_MIN_SIZE = 6
 ROOM_MAX_SIZE = 12
 MAX_MONSTERS_PER_ROOM = 2
 ORC_CHANCE = 0.2  # 20 % d'orcs, 80 % de gobelins
+MAX_ITEMS_PER_ROOM = 1
 
 
 @dataclass(frozen=True)
@@ -117,6 +118,7 @@ def generate_dungeon(
     room_min_size: int = ROOM_MIN_SIZE,
     room_max_size: int = ROOM_MAX_SIZE,
     max_monsters_per_room: int = MAX_MONSTERS_PER_ROOM,
+    max_items_per_room: int = MAX_ITEMS_PER_ROOM,
 ) -> tuple[GameMap, list[RectangularRoom]]:
     """Crée un donjon. Retourne la carte et la liste des salles (dans l'ordre).
 
@@ -151,6 +153,11 @@ def generate_dungeon(
     for room in rooms[1:]:
         place_monsters(game_map, room, rng, max_monsters_per_room)
 
+    # Les objets en dernier (même raison : les monstres restent ceux de M5).
+    # Ici toutes les salles, première comprise.
+    for room in rooms:
+        place_items(game_map, room, rng, max_items_per_room)
+
     return game_map, rooms
 
 
@@ -169,3 +176,18 @@ def place_monsters(
         else:
             monster = make_goblin(x, y)
         game_map.entities.append(monster)
+
+
+def place_items(
+    game_map: GameMap, room: RectangularRoom, rng: random.Random, max_items: int
+) -> None:
+    """Place entre 0 et max_items potions sur des cases sans aucune entité."""
+    count = rng.randint(0, max_items)
+    for _ in range(count):
+        x = rng.randint(room.x1 + 1, room.x2 - 1)
+        y = rng.randint(room.y1 + 1, room.y2 - 1)
+        # Ni monstre ni autre objet dessus (un objet ne bloque pas, donc
+        # is_free ne suffit pas : on vérifie toutes les entités).
+        if any(e.x == x and e.y == y for e in game_map.entities):
+            continue
+        game_map.entities.append(make_health_potion(x, y))
