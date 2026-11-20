@@ -1,0 +1,3 @@
+# Seule dépendance externe du projet : curses n'est pas fourni par Python sous Windows.
+# Sous Linux / macOS, curses fait partie de la bibliothèque standard : rien à installer.
+windows-curses; sys_platform == "win32"
