@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from game.actions import Action, MoveAction, QuitAction
 from game.entities import Entity
+from game.fov import compute_fov
 from game.map import GameMap
+
+FOV_RADIUS = 8
 
 
 class Engine:
@@ -18,13 +21,15 @@ class Engine:
         self.player = player
         self.seed = seed  # gardée pour l'afficher (et rejouer le même donjon)
         self.running = True  # passe à False quand le joueur quitte
+        self.update_fov()  # le joueur voit autour de lui dès le départ
 
     def handle_action(self, action: Action) -> None:
         """Applique une action à l'état du jeu."""
         if isinstance(action, QuitAction):
             self.running = False
         elif isinstance(action, MoveAction):
-            self.move_player(action.dx, action.dy)
+            if self.move_player(action.dx, action.dy):
+                self.update_fov()  # on ne recalcule que si le joueur a bougé
 
     def move_player(self, dx: int, dy: int) -> bool:
         """Déplace le joueur si la case visée est praticable.
@@ -40,3 +45,10 @@ class Engine:
         self.player.x = new_x
         self.player.y = new_y
         return True
+
+    def update_fov(self) -> None:
+        """Recalcule ce que voit le joueur et l'ajoute à la mémoire d'exploration."""
+        game_map = self.game_map
+        game_map.visible = compute_fov(game_map, self.player.x, self.player.y, FOV_RADIUS)
+        # |= : union d'ensembles. Ce qui a été vu une fois reste exploré.
+        game_map.explored |= game_map.visible

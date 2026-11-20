@@ -120,7 +120,7 @@ Contrôles : flèches **et** `hjkl` (+ `yubn` diagonales), `g` ramasser, `i` inv
 | M1 | fait | `main.py` + `game/input.py` (touche → action). Diagonales `yubn` déjà incluses. Redimensionnement du terminal géré. |
 | M2 | fait | Carte 80×40 dessinée en haut à gauche (pas de caméra). Terminal trop petit → message, seul `q` accepté. Actions déplacées dans `actions.py` (sans curses). 3 tests : `python3 -m unittest discover tests`. |
 | M3 | fait | `generate_dungeon(rng)` avec `random.Random(seed)` dédié. Salles en chaîne (chacune reliée à la précédente). Seed affichée sur une ligne de statut sous la carte (terminal min 80×41) et rappelée en quittant. Tests : connexité (BFS) sur 100 seeds, non-chevauchement, déterminisme. |
-| M4 | à faire | |
+| M4 | fait | Rayon 8, un rayon de Bresenham vers chaque case du cercle + passe « murs qui bordent du sol visible » (coins diagonaux seulement si vrai coin). `visible` / `explored` = ensembles dans `GameMap`. Exploré = gris (couleur 8 si ≥16 couleurs, sinon `A_DIM`). 18 tests. |
 | M5 | à faire | |
 | M6 | à faire | |
 | M7 | à faire | |

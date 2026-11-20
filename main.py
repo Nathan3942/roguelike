@@ -18,7 +18,7 @@ from game.engine import Engine
 from game.entities import Entity
 from game.input import key_to_action
 from game.procgen import generate_dungeon
-from game.render import draw, terminal_is_big_enough
+from game.render import draw, init_styles, terminal_is_big_enough
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +44,7 @@ def new_game(seed: int) -> Engine:
 def main(stdscr: curses.window, engine: Engine) -> None:
     """Boucle principale. curses.wrapper() nous fournit stdscr déjà initialisé."""
     curses.curs_set(0)  # cache le curseur clignotant du terminal
+    init_styles()  # couleurs / atténuation pour les zones explorées
 
     while engine.running:
         draw(stdscr, engine)

@@ -12,6 +12,31 @@ from game.engine import Engine
 # Lignes réservées sous la carte (pour l'instant : une ligne de statut).
 HUD_HEIGHT = 1
 
+# Numéro de la paire de couleurs « gris » (les paires se numérotent à partir de 1).
+REMEMBERED_PAIR = 1
+
+
+def init_styles() -> None:
+    """Prépare les styles d'affichage. À appeler une fois, après l'init de curses.
+
+    Pour les cases explorées mais plus visibles, on veut du gris :
+    - si le terminal a au moins 16 couleurs, la couleur n°8 est un gris foncé
+      (« noir brillant ») : on crée une paire gris sur fond par défaut ;
+    - sinon, on se rabat sur l'attribut A_DIM (texte atténué).
+    """
+    if curses.has_colors():
+        curses.start_color()
+        curses.use_default_colors()  # -1 = couleur de fond du terminal
+        if curses.COLORS >= 16:
+            curses.init_pair(REMEMBERED_PAIR, 8, -1)
+
+
+def get_remembered_style() -> int:
+    """Attribut curses pour les cases explorées hors de vue."""
+    if curses.has_colors() and curses.COLORS >= 16:
+        return curses.color_pair(REMEMBERED_PAIR)
+    return curses.A_DIM
+
 
 def required_size(engine: Engine) -> tuple[int, int]:
     """Taille minimale du terminal (largeur, hauteur) : carte + HUD."""
@@ -56,14 +81,23 @@ def draw_too_small(stdscr: curses.window, engine: Engine) -> None:
 
 
 def draw_map(stdscr: curses.window, engine: Engine) -> None:
-    """Dessine la carte ligne par ligne, depuis le coin haut-gauche.
+    """Dessine les cases connues de la carte, depuis le coin haut-gauche.
 
-    Une ligne = un seul appel addstr (bien plus rapide que case par case).
+    - visible  → style normal ;
+    - explorée → style « souvenir » (grisé) ;
+    - inconnue → rien (erase() a déjà mis un espace).
+    On ne parcourt que `explored` (qui contient `visible`) : inutile de
+    regarder les cases jamais vues.
     """
     game_map = engine.game_map
-    for y in range(game_map.height):
-        row = "".join(tile.char for tile in game_map.tiles[y])
-        safe_addstr(stdscr, y, 0, row)
+    remembered_style = get_remembered_style()
+    for x, y in game_map.explored:
+        char = game_map.get_tile(x, y).char
+        style = curses.A_NORMAL if (x, y) in game_map.visible else remembered_style
+        try:
+            stdscr.addstr(y, x, char, style)
+        except curses.error:
+            pass  # coin bas-droit, voir safe_addstr
 
 
 def draw_status_line(stdscr: curses.window, engine: Engine) -> None:
