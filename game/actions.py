@@ -1,0 +1,27 @@
+"""Les actions possibles dans le jeu.
+
+Une action décrit CE QUE le joueur veut faire, indépendamment de la touche
+pressée (voir input.py) et de la façon dont le moteur l'exécute (engine.py).
+Ce module ne dépend pas de curses : il reste testable partout.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class MoveAction:
+    """Déplacement d'une case : dx vers la droite, dy vers le bas."""
+
+    dx: int
+    dy: int
+
+
+@dataclass(frozen=True)
+class QuitAction:
+    """Le joueur veut quitter le jeu."""
+
+
+# Une action possible est l'une des classes ci-dessus.
+Action = MoveAction | QuitAction

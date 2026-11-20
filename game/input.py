@@ -2,31 +2,14 @@
 
 On sépare « quelle touche a été pressée » de « ce que le jeu doit faire ».
 Le reste du programme ne manipule jamais de codes de touches : il reçoit
-une action (ici, pour M1, un déplacement ou l'ordre de quitter).
+une action (voir actions.py).
 """
 
 from __future__ import annotations
 
 import curses
-from dataclasses import dataclass
 
-
-@dataclass(frozen=True)
-class MoveAction:
-    """Déplacement d'une case : dx vers la droite, dy vers le bas."""
-
-    dx: int
-    dy: int
-
-
-@dataclass(frozen=True)
-class QuitAction:
-    """Le joueur veut quitter le jeu."""
-
-
-# Une action possible est l'une des classes ci-dessus.
-Action = MoveAction | QuitAction
-
+from game.actions import Action, MoveAction, QuitAction
 
 # Table touche -> (dx, dy).
 # Attention : en curses, l'axe y va vers le BAS (ligne 0 = haut de l'écran).

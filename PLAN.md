@@ -118,7 +118,7 @@ Contrôles : flèches **et** `hjkl` (+ `yubn` diagonales), `g` ramasser, `i` inv
 | Milestone | Statut | Notes |
 |-----------|--------|-------|
 | M1 | fait | `main.py` + `game/input.py` (touche → action). Diagonales `yubn` déjà incluses. Redimensionnement du terminal géré. |
-| M2 | à faire | |
+| M2 | fait | Carte 80×40 dessinée en haut à gauche (pas de caméra). Terminal trop petit → message, seul `q` accepté. Actions déplacées dans `actions.py` (sans curses). 3 tests : `python3 -m unittest discover tests`. |
 | M3 | à faire | |
 | M4 | à faire | |
 | M5 | à faire | |
