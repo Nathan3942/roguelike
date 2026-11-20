@@ -17,7 +17,7 @@ def make_engine() -> Engine:
             game_map.set_tile(x, y, FLOOR)
     game_map.set_tile(2, 1, WALL)
     player = Entity(x=1, y=1, char="@", name="Joueur")
-    return Engine(game_map, player)
+    return Engine(game_map, player, seed=0)
 
 
 class CollisionTests(unittest.TestCase):

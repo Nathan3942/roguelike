@@ -1,32 +1,143 @@
-"""Génération des cartes.
+"""Génération procédurale du donjon.
 
-M2 : une seule salle codée en dur (la vraie génération aléatoire arrive en M3).
+Algorithme (classique, simple à suivre) :
+  1. On part d'une carte remplie de murs.
+  2. On essaie `max_rooms` fois de poser une salle rectangulaire de taille et de
+     position aléatoires. Si elle chevauche une salle déjà posée, on l'abandonne.
+  3. Chaque nouvelle salle acceptée est reliée à la PRÉCÉDENTE par un couloir
+     en L. Les salles forment ainsi une chaîne 1 → 2 → 3 → … : toutes sont
+     forcément connectées (c'est ce que vérifie le test unitaire).
+
+Reproductibilité : tout le hasard passe par un objet random.Random(seed)
+qu'on reçoit en paramètre (jamais le module `random` global). Même seed →
+mêmes tirages, dans le même ordre → même donjon.
 """
 
 from __future__ import annotations
+
+import random
+from collections.abc import Iterator
+from dataclasses import dataclass
 
 from game.map import FLOOR, WALL, GameMap
 
 MAP_WIDTH = 80
 MAP_HEIGHT = 40
+MAX_ROOMS = 30
+ROOM_MIN_SIZE = 6
+ROOM_MAX_SIZE = 12
 
 
-def generate_test_room() -> tuple[GameMap, tuple[int, int]]:
-    """Crée une carte pleine de murs avec une salle creusée dedans.
+@dataclass(frozen=True)
+class RectangularRoom:
+    """Salle rectangulaire, murs compris : coins (x1, y1) et (x2, y2) inclus.
 
-    Retourne la carte et la position de départ du joueur (x, y).
+    Le SOL est l'intérieur (sans le contour), donc deux salles qui ne se
+    chevauchent pas ont toujours au moins un mur entre elles.
     """
-    game_map = GameMap(MAP_WIDTH, MAP_HEIGHT, fill=WALL)
 
-    # Salle : intérieur de x=10..69 et y=5..34 (bornes incluses).
-    for y in range(5, 35):
-        for x in range(10, 70):
-            game_map.set_tile(x, y, FLOOR)
+    x1: int
+    y1: int
+    x2: int
+    y2: int
 
-    # Un pilier 4×3 au milieu, pour tester les collisions ailleurs qu'au bord.
-    for y in range(18, 21):
-        for x in range(38, 42):
-            game_map.set_tile(x, y, WALL)
+    @classmethod
+    def from_size(cls, x: int, y: int, width: int, height: int) -> RectangularRoom:
+        return cls(x, y, x + width - 1, y + height - 1)
 
-    start = (20, 20)
-    return game_map, start
+    @property
+    def center(self) -> tuple[int, int]:
+        return (self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2
+
+    def inner_tiles(self) -> Iterator[tuple[int, int]]:
+        """Toutes les cases (x, y) de l'intérieur de la salle (sans les murs)."""
+        for y in range(self.y1 + 1, self.y2):
+            for x in range(self.x1 + 1, self.x2):
+                yield x, y
+
+    def intersects(self, other: RectangularRoom) -> bool:
+        """Vrai si les deux rectangles se touchent ou se chevauchent.
+
+        Deux rectangles NE se chevauchent PAS si l'un est entièrement à gauche,
+        à droite, au-dessus ou en dessous de l'autre. On teste l'inverse.
+        `<=` (et non `<`) : partager un mur compte comme un chevauchement.
+        """
+        return (
+            self.x1 <= other.x2
+            and self.x2 >= other.x1
+            and self.y1 <= other.y2
+            and self.y2 >= other.y1
+        )
+
+
+def l_tunnel(
+    start: tuple[int, int], end: tuple[int, int], rng: random.Random
+) -> Iterator[tuple[int, int]]:
+    """Cases d'un couloir en L de start à end.
+
+    On choisit au hasard de partir d'abord à l'horizontale ou à la verticale.
+    Le « coude » du L est donc soit (end_x, start_y), soit (start_x, end_y) :
+
+        start ─────┐          start
+                   │            │
+                  end           └───── end
+    """
+    (x1, y1), (x2, y2) = start, end
+    if rng.random() < 0.5:
+        corner = (x2, y1)  # horizontal puis vertical
+    else:
+        corner = (x1, y2)  # vertical puis horizontal
+
+    yield from straight_line(start, corner)
+    yield from straight_line(corner, end)
+
+
+def straight_line(start: tuple[int, int], end: tuple[int, int]) -> Iterator[tuple[int, int]]:
+    """Cases d'un segment horizontal OU vertical, extrémités comprises."""
+    (x1, y1), (x2, y2) = start, end
+    step_x = 1 if x2 >= x1 else -1
+    step_y = 1 if y2 >= y1 else -1
+    # Un des deux range ne contient qu'une seule valeur (segment droit).
+    for x in range(x1, x2 + step_x, step_x):
+        for y in range(y1, y2 + step_y, step_y):
+            yield x, y
+
+
+def generate_dungeon(
+    rng: random.Random,
+    map_width: int = MAP_WIDTH,
+    map_height: int = MAP_HEIGHT,
+    max_rooms: int = MAX_ROOMS,
+    room_min_size: int = ROOM_MIN_SIZE,
+    room_max_size: int = ROOM_MAX_SIZE,
+) -> tuple[GameMap, list[RectangularRoom]]:
+    """Crée un donjon. Retourne la carte et la liste des salles (dans l'ordre).
+
+    Le joueur commencera au centre de rooms[0].
+    """
+    game_map = GameMap(map_width, map_height, fill=WALL)
+    rooms: list[RectangularRoom] = []
+
+    for _ in range(max_rooms):
+        width = rng.randint(room_min_size, room_max_size)
+        height = rng.randint(room_min_size, room_max_size)
+        # Position telle que la salle reste entièrement dans la carte.
+        x = rng.randint(0, map_width - width)
+        y = rng.randint(0, map_height - height)
+        new_room = RectangularRoom.from_size(x, y, width, height)
+
+        # any() s'arrête au premier chevauchement trouvé.
+        if any(new_room.intersects(other) for other in rooms):
+            continue  # salle rejetée, on tente la suivante
+
+        for tx, ty in new_room.inner_tiles():
+            game_map.set_tile(tx, ty, FLOOR)
+
+        if rooms:
+            # Relie cette salle à la précédente (centre à centre).
+            for tx, ty in l_tunnel(rooms[-1].center, new_room.center, rng):
+                game_map.set_tile(tx, ty, FLOOR)
+
+        rooms.append(new_room)
+
+    return game_map, rooms

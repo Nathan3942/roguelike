@@ -13,9 +13,10 @@ from game.map import GameMap
 
 
 class Engine:
-    def __init__(self, game_map: GameMap, player: Entity) -> None:
+    def __init__(self, game_map: GameMap, player: Entity, seed: int) -> None:
         self.game_map = game_map
         self.player = player
+        self.seed = seed  # gardée pour l'afficher (et rejouer le même donjon)
         self.running = True  # passe à False quand le joueur quitte
 
     def handle_action(self, action: Action) -> None:
