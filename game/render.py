@@ -158,6 +158,22 @@ def draw_box(stdscr: curses.window, engine: Engine, lines: list[str]) -> None:
             pass
 
 
+def draw_question(stdscr: curses.window, lines: list[str]) -> None:
+    """Écran simple : quelques lignes centrées dans le terminal.
+
+    Utilisé AVANT qu'une partie existe (pas de carte à centrer), d'où un
+    centrage sur la taille du terminal plutôt que sur la carte.
+    """
+    stdscr.erase()
+    height, width = stdscr.getmaxyx()
+    top = max(height // 2 - len(lines) // 2, 0)
+    for row, line in enumerate(lines):
+        text = line[: max(width - 1, 0)]
+        left = max(width // 2 - len(text) // 2, 0)
+        safe_addstr(stdscr, top + row, left, text)
+    stdscr.refresh()
+
+
 def draw_game_over(stdscr: curses.window, engine: Engine) -> None:
     """Bandeau centré par-dessus la carte (on voit encore qui nous a tué)."""
     draw_box(stdscr, engine, ["", "      VOUS ETES MORT      ", "", "  Appuyez sur q pour quitter.", ""])
