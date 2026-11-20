@@ -7,6 +7,9 @@ Algorithme (classique, simple à suivre) :
   3. Chaque nouvelle salle acceptée est reliée à la PRÉCÉDENTE par un couloir
      en L. Les salles forment ainsi une chaîne 1 → 2 → 3 → … : toutes sont
      forcément connectées (c'est ce que vérifie le test unitaire).
+  4. Une fois TOUTES les salles creusées, on place les monstres (sauf dans la
+     première salle, où démarre le joueur). Les faire après garde les mêmes
+     tirages pour la forme du donjon : une seed donne le même plan qu'en M3.
 
 Reproductibilité : tout le hasard passe par un objet random.Random(seed)
 qu'on reçoit en paramètre (jamais le module `random` global). Même seed →
@@ -19,6 +22,7 @@ import random
 from collections.abc import Iterator
 from dataclasses import dataclass
 
+from game.entities import make_goblin, make_orc
 from game.map import FLOOR, WALL, GameMap
 
 MAP_WIDTH = 80
@@ -26,6 +30,8 @@ MAP_HEIGHT = 40
 MAX_ROOMS = 30
 ROOM_MIN_SIZE = 6
 ROOM_MAX_SIZE = 12
+MAX_MONSTERS_PER_ROOM = 2
+ORC_CHANCE = 0.2  # 20 % d'orcs, 80 % de gobelins
 
 
 @dataclass(frozen=True)
@@ -110,6 +116,7 @@ def generate_dungeon(
     max_rooms: int = MAX_ROOMS,
     room_min_size: int = ROOM_MIN_SIZE,
     room_max_size: int = ROOM_MAX_SIZE,
+    max_monsters_per_room: int = MAX_MONSTERS_PER_ROOM,
 ) -> tuple[GameMap, list[RectangularRoom]]:
     """Crée un donjon. Retourne la carte et la liste des salles (dans l'ordre).
 
@@ -140,4 +147,25 @@ def generate_dungeon(
 
         rooms.append(new_room)
 
+    # rooms[1:] : la première salle (départ du joueur) reste sans monstre.
+    for room in rooms[1:]:
+        place_monsters(game_map, room, rng, max_monsters_per_room)
+
     return game_map, rooms
+
+
+def place_monsters(
+    game_map: GameMap, room: RectangularRoom, rng: random.Random, max_monsters: int
+) -> None:
+    """Place entre 0 et max_monsters monstres sur des cases libres de la salle."""
+    count = rng.randint(0, max_monsters)
+    for _ in range(count):
+        x = rng.randint(room.x1 + 1, room.x2 - 1)
+        y = rng.randint(room.y1 + 1, room.y2 - 1)
+        if not game_map.is_free(x, y):
+            continue  # case déjà prise : on renonce à ce monstre (plus simple)
+        if rng.random() < ORC_CHANCE:
+            monster = make_orc(x, y)
+        else:
+            monster = make_goblin(x, y)
+        game_map.entities.append(monster)

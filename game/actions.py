@@ -19,9 +19,14 @@ class MoveAction:
 
 
 @dataclass(frozen=True)
+class WaitAction:
+    """Passer son tour sans bouger (les monstres, eux, agissent)."""
+
+
+@dataclass(frozen=True)
 class QuitAction:
     """Le joueur veut quitter le jeu."""
 
 
 # Une action possible est l'une des classes ci-dessus.
-Action = MoveAction | QuitAction
+Action = MoveAction | WaitAction | QuitAction

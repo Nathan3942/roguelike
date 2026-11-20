@@ -102,7 +102,7 @@ def draw_map(stdscr: curses.window, engine: Engine) -> None:
 
 def draw_status_line(stdscr: curses.window, engine: Engine) -> None:
     """Ligne de statut juste sous la carte."""
-    text = f"Seed : {engine.seed}   |   q : quitter"
+    text = f"Seed : {engine.seed}   |   . : attendre   |   q : quitter"
     safe_addstr(stdscr, engine.game_map.height, 0, text)
 
 
@@ -117,8 +117,23 @@ def draw(stdscr: curses.window, engine: Engine) -> None:
         draw_too_small(stdscr, engine)
     else:
         draw_map(stdscr, engine)
+        draw_entities(stdscr, engine)
         draw_status_line(stdscr, engine)
-        player = engine.player
-        # Le joueur est dessiné APRÈS la carte, donc par-dessus.
-        safe_addstr(stdscr, player.y, player.x, player.char)
     stdscr.refresh()
+
+
+def draw_entities(stdscr: curses.window, engine: Engine) -> None:
+    """Dessine les entités VISIBLES, par-dessus la carte.
+
+    Un monstre hors de vue n'est pas affiché, même sur une case explorée :
+    on se souvient des lieux, pas de qui s'y trouvait.
+    Le joueur est dessiné en dernier pour qu'il soit toujours au-dessus.
+    """
+    game_map = engine.game_map
+    for entity in game_map.entities:
+        if entity is engine.player:
+            continue
+        if (entity.x, entity.y) in game_map.visible:
+            safe_addstr(stdscr, entity.y, entity.x, entity.char)
+    player = engine.player
+    safe_addstr(stdscr, player.y, player.x, player.char)

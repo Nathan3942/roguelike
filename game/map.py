@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from game.entities import Entity
 
 
 @dataclass(frozen=True)
@@ -46,6 +50,8 @@ class GameMap:
         self.tiles: list[list[Tile]] = [[fill] * width for _ in range(height)]
         self.visible: set[tuple[int, int]] = set()
         self.explored: set[tuple[int, int]] = set()
+        # Tout ce qui se trouve sur cet étage (joueur compris).
+        self.entities: list[Entity] = []
 
     def in_bounds(self, x: int, y: int) -> bool:
         """La case (x, y) est-elle dans la carte ?"""
@@ -64,3 +70,14 @@ class GameMap:
     def is_transparent(self, x: int, y: int) -> bool:
         """Vrai si le regard traverse (x, y). Hors carte = opaque."""
         return self.in_bounds(x, y) and self.get_tile(x, y).transparent
+
+    def get_blocking_entity_at(self, x: int, y: int) -> Entity | None:
+        """L'entité qui bloque la case (x, y), ou None si personne."""
+        for entity in self.entities:
+            if entity.blocks_movement and entity.x == x and entity.y == y:
+                return entity
+        return None
+
+    def is_free(self, x: int, y: int) -> bool:
+        """Peut-on aller en (x, y) ? Sol praticable ET personne dessus."""
+        return self.is_walkable(x, y) and self.get_blocking_entity_at(x, y) is None

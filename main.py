@@ -15,7 +15,7 @@ import random
 
 from game.actions import QuitAction
 from game.engine import Engine
-from game.entities import Entity
+from game.entities import make_player
 from game.input import key_to_action
 from game.procgen import generate_dungeon
 from game.render import draw, init_styles, terminal_is_big_enough
@@ -37,7 +37,7 @@ def new_game(seed: int) -> Engine:
     rng = random.Random(seed)  # générateur DÉDIÉ, pas le random global
     game_map, rooms = generate_dungeon(rng)
     start_x, start_y = rooms[0].center
-    player = Entity(x=start_x, y=start_y, char="@", name="Joueur")
+    player = make_player(start_x, start_y)
     return Engine(game_map, player, seed)
 
 

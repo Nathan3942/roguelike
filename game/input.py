@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import curses
 
-from game.actions import Action, MoveAction, QuitAction
+from game.actions import Action, MoveAction, QuitAction, WaitAction
 
 # Table touche -> (dx, dy).
 # Attention : en curses, l'axe y va vers le BAS (ligne 0 = haut de l'écran).
@@ -32,12 +32,16 @@ MOVE_KEYS: dict[int, tuple[int, int]] = {
 }
 
 QUIT_KEYS: set[int] = {ord("q")}
+# « . » (comme le sol) ou « 5 » (centre du pavé numérique) : passer son tour.
+WAIT_KEYS: set[int] = {ord("."), ord("5")}
 
 
 def key_to_action(key: int) -> Action | None:
     """Retourne l'action associée à une touche, ou None si la touche est ignorée."""
     if key in QUIT_KEYS:
         return QuitAction()
+    if key in WAIT_KEYS:
+        return WaitAction()
     if key in MOVE_KEYS:
         dx, dy = MOVE_KEYS[key]
         return MoveAction(dx, dy)
